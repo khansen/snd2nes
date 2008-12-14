@@ -132,15 +132,18 @@ static void print_sample_table(const char *table_label, const char *sample_label
         4,3,2,1,0,
         4,3,2,1,0
     };
+    static const char letters[] = "C-C#D-D#E-F-F#G-G#A-A#B-";
     int i;
     if (table_label)
         fprintf(out, "%s:\n", table_label);
     for (i = 0; i < 42; ++i) {
         unsigned char f = freqs[i];
         unsigned char s = samples[i];
-        fprintf(out, ".db $%.2X,$%.2X,(%s%d-$C000)/64,(%s%d-%s%d)/16\n",
+        int note = i + 55;
+        int j = note % 12;
+        fprintf(out, ".db $%.2X,$%.2X,(%s%d-$C000)/64,(%s%d-%s%d)/16 ; %.2X=%c%c%d\n",
                 f, 0, sample_label_prefix, s, sample_label_prefix,
-                s+1, sample_label_prefix, s);
+                s+1, sample_label_prefix, s, i, letters[j*2], letters[j*2+1], note / 12);
     }
 }
 
@@ -165,7 +168,7 @@ void snd2nes(const char *input_filename, FILE *out)
     for (i = 0; i < 5; ++i) {
         float c8_hz = note_hz(12*8);
         float hz = note_hz(12*8 - i);
-	convert_to_dmc(&info, frames, (hz / c8_hz) * info.samplerate, &bufs[i], &sizes[i]);
+	convert_to_dmc(&info, frames, 1 * (hz / c8_hz) * info.samplerate, &bufs[i], &sizes[i]);
     }
     free(frames);
     sf_close(sf);
