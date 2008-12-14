@@ -31,7 +31,8 @@ static void print_chunk(FILE *out, const char *label,
 }
 
 static void convert_to_dmc(SF_INFO *info, short *frames,
-                           float samplerate, unsigned char **data_out, int *size_out)
+                           float samplerate, unsigned char *delta_ctr_load_out,
+                           unsigned char **data_out, int *size_out)
 {
     unsigned char bit;
     unsigned char encoded;
@@ -86,6 +87,7 @@ static void convert_to_dmc(SF_INFO *info, short *frames,
     buf[(bitcount-1) / 8] = encoded;
     *data_out = buf;
     *size_out = bitcount / 8;
+    *delta_ctr_load_out = (frames[0] + 0x8000) / 256;
 }
 
 static float note_hz(int note)
@@ -94,7 +96,7 @@ static float note_hz(int note)
 }
 
 static void print_sample_table(const char *table_label, const char *sample_label_prefix,
-                               int *sizes, FILE *out)
+                               const unsigned char *delta_ctr_loads, FILE *out)
 {
     static const unsigned char freqs[] = {
         0,0,
@@ -141,8 +143,8 @@ static void print_sample_table(const char *table_label, const char *sample_label
         unsigned char s = samples[i];
         int note = i + 55;
         int j = note % 12;
-        fprintf(out, ".db $%.2X,$%.2X,(%s%d-$C000)/64,(%s%d-%s%d)/16 ; %.2X=%c%c%d\n",
-                f, 0, sample_label_prefix, s, sample_label_prefix,
+        fprintf(out, ".db $%.2X,$%.2X,(%s%d-$C000)/64,(%s%d-%s%d)/16-1 ; %.2X=%c%c%d\n",
+                f, delta_ctr_loads[s], sample_label_prefix, s, sample_label_prefix,
                 s+1, sample_label_prefix, s, i, letters[j*2], letters[j*2+1], note / 12);
     }
 }
@@ -154,6 +156,7 @@ void snd2nes(const char *input_filename, FILE *out)
     SF_INFO info;
     sf_count_t count;
     int i;
+    unsigned char delta_ctr_loads[5];
     unsigned char *bufs[5];
     int sizes[5];
 
@@ -166,9 +169,11 @@ void snd2nes(const char *input_filename, FILE *out)
     assert(count == info.frames);
 
     for (i = 0; i < 5; ++i) {
-        float c8_hz = note_hz(12*8);
-        float hz = note_hz(12*8 - i);
-	convert_to_dmc(&info, frames, 1 * (hz / c8_hz) * info.samplerate, &bufs[i], &sizes[i]);
+        static const int base_note = 12*8;
+        float base_hz = note_hz(base_note);
+        float hz = note_hz(base_note + 3 - i);
+	convert_to_dmc(&info, frames, 1 * (hz / base_hz) * info.samplerate,
+                       &delta_ctr_loads[i], &bufs[i], &sizes[i]);
     }
     free(frames);
     sf_close(sf);
@@ -182,7 +187,7 @@ void snd2nes(const char *input_filename, FILE *out)
     }
     fprintf(out, "sample%d:\n", 5);
 
-    print_sample_table("dmc_sample_table", "sample", sizes, out);
+    print_sample_table("dmc_sample_table", "sample", delta_ctr_loads, out);
 
     for (i = 0; i < 5; ++i)
         free(bufs[i]);
