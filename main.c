@@ -27,8 +27,8 @@ static char program_version[] = "snd2nes 1.0";
 static void usage()
 {
     printf(
-        "Usage: snd2nes [--output=FILE]\n"
-        "               [--verbose]\n"
+        "Usage: snd2nes [--note-delta=DELTA] [--hertz-delta=DELTA]"
+        "               [--output=FILE]\n [--verbose]\n"
         "               [--help] [--usage] [--version]\n"
         "               FILE\n");
     exit(0);
@@ -40,6 +40,8 @@ static void help()
     printf("Usage: snd2nes [OPTION...] FILE\n"
            "snd2nes converts sound files to NES DMC format.\n\n"
            "Options:\n\n"
+           "  --note-delta=DELTA              Transponse note by DELTA\n"
+           "  --hertz-delta=DELTA             Transponse base hertz by DELTA\n"
            "  --output=FILE                   Store output in FILE\n"
            "  --verbose                       Print progress information to standard output\n"  
            "  --help                          Give this help list\n"
@@ -55,7 +57,7 @@ static void version()
     exit(0);
 }
 
-extern void snd2nes(const char *, FILE *);
+extern int snd2nes(const char *, int, int, FILE *);
 
 /**
   Program entrypoint.
@@ -65,13 +67,19 @@ int main(int argc, char *argv[])
     int verbose = 0;
     const char *input_filename = 0;
     const char *output_filename = 0;
+    int note_delta = 3;
+    int hz_delta = 48;
     /* Process arguments. */
     {
         char *p;
         while ((p = *(++argv))) {
             if (!strncmp("--", p, 2)) {
                 const char *opt = &p[2];
-                if (!strncmp("output=", opt, 7)) {
+                if (!strncmp("note-delta=", opt, 11)) {
+                    note_delta = strtol(&opt[11], 0, 0);
+                } else if (!strncmp("hertz-delta=", opt, 12)) {
+                    hz_delta = strtol(&opt[12], 0, 0);
+                } else if (!strncmp("output=", opt, 7)) {
                     output_filename = &opt[7];
                 } else if (!strcmp("verbose", opt)) {
                     verbose = 1;
@@ -99,6 +107,7 @@ int main(int argc, char *argv[])
     }
 
     {
+        int ret;
 	FILE *out;
         if (!output_filename)
             out = stdout;
@@ -108,8 +117,12 @@ int main(int argc, char *argv[])
             fprintf(stderr, "snd2nes: failed to open `%s' for writing\n", output_filename);
             return(-1);
         }
-        snd2nes(input_filename, out);
+        ret = snd2nes(input_filename, note_delta, hz_delta, out);
         fclose(out);
+        if (ret == 1) {
+            fprintf(stderr, "snd2nes: failed to open `%s' for reading\n", input_filename);
+            return(-1);
+        }
     }
 
 

@@ -149,7 +149,7 @@ static void print_sample_table(const char *table_label, const char *sample_label
     }
 }
 
-void snd2nes(const char *input_filename, FILE *out)
+int snd2nes(const char *input_filename, int note_delta, int hz_delta, FILE *out)
 {
     short *frames;
     SNDFILE *sf;
@@ -162,6 +162,8 @@ void snd2nes(const char *input_filename, FILE *out)
 
     info.format = 0;
     sf = sf_open(input_filename, SFM_READ, &info);
+    if (!sf)
+        return 1;
     assert(info.channels == 1);
 
     frames = (short *)malloc(info.frames * sizeof(short));
@@ -170,8 +172,8 @@ void snd2nes(const char *input_filename, FILE *out)
 
     for (i = 0; i < 5; ++i) {
         static const int base_note = 12*8;
-        float base_hz = note_hz(base_note);
-        float hz = note_hz(base_note + 3 - i);
+        float base_hz = note_hz(base_note) + hz_delta;
+        float hz = note_hz(base_note + note_delta - i);
 	convert_to_dmc(&info, frames, 1 * (hz / base_hz) * info.samplerate,
                        &delta_ctr_loads[i], &bufs[i], &sizes[i]);
     }
@@ -191,4 +193,5 @@ void snd2nes(const char *input_filename, FILE *out)
 
     for (i = 0; i < 5; ++i)
         free(bufs[i]);
+    return 0;
 }
