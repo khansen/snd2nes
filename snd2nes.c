@@ -57,7 +57,7 @@ static void convert_to_dmc(SF_INFO *info, short *frames,
             buf[(bitcount-1) / 8] = encoded;
             encoded = 0;
         }
-        curr = frames[(int)pos];
+        curr = frames[(int)pos * info->channels];
         if (curr < prev)
             bit = 0;
         else if (curr > prev)
@@ -149,7 +149,8 @@ static void print_sample_table(const char *table_label, const char *sample_label
     }
 }
 
-int snd2nes(const char *input_filename, int note_delta, int hz_delta, FILE *out)
+int snd2nes(const char *input_filename, int note_delta,
+            int hz_delta, int multi, FILE *out)
 {
     short *frames;
     SNDFILE *sf;
@@ -164,13 +165,12 @@ int snd2nes(const char *input_filename, int note_delta, int hz_delta, FILE *out)
     sf = sf_open(input_filename, SFM_READ, &info);
     if (!sf)
         return 1;
-    assert(info.channels == 1);
 
-    frames = (short *)malloc(info.frames * sizeof(short));
+    frames = (short *)malloc(info.channels * info.frames * sizeof(short));
     count = sf_readf_short(sf, frames, info.frames);
     assert(count == info.frames);
 
-    for (i = 0; i < 5; ++i) {
+    for (i = 0; i < (multi ? 5 : 1); ++i) {
         static const int base_note = 12*8;
         float base_hz = note_hz(base_note) + hz_delta;
         float hz = note_hz(base_note + note_delta - i);
@@ -180,18 +180,26 @@ int snd2nes(const char *input_filename, int note_delta, int hz_delta, FILE *out)
     free(frames);
     sf_close(sf);
 
-    fprintf(out, ".public dmc_sample_table\n");
+    if (multi)
+        fprintf(out, ".public dmc_sample_table\n");
 
-    for (i = 0; i < 5; ++i) {
+    for (i = 0; i < (multi ? 5 : 1); ++i) {
         char label[32];
         sprintf(label, "sample%d", i);
         print_chunk(out, label, bufs[i], sizes[i], 16);
     }
-    fprintf(out, "sample%d:\n", 5);
+    if (multi)
+        fprintf(out, "sample%d:\n", 5);
 
-    print_sample_table("dmc_sample_table", "sample", delta_ctr_loads, out);
+    if (multi) {
+        print_sample_table("dmc_sample_table", "sample", delta_ctr_loads, out);
+    } else {
+        fprintf(out, "; values to write to $4010-$4013\n");
+        fprintf(out, ".db $0F,$%.2X,(sample0-$C000)/64,$%.2X\n",
+                delta_ctr_loads[0], sizes[0]/16-1);
+    }
 
-    for (i = 0; i < 5; ++i)
+    for (i = 0; i < (multi ? 5 : 1); ++i)
         free(bufs[i]);
     return 0;
 }

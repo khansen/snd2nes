@@ -42,6 +42,7 @@ static void help()
            "Options:\n\n"
            "  --note-delta=DELTA              Transponse note by DELTA\n"
            "  --hertz-delta=DELTA             Transponse base hertz by DELTA\n"
+           "  --multi                         Create multiple samples\n"
            "  --output=FILE                   Store output in FILE\n"
            "  --verbose                       Print progress information to standard output\n"  
            "  --help                          Give this help list\n"
@@ -57,7 +58,7 @@ static void version()
     exit(0);
 }
 
-extern int snd2nes(const char *, int, int, FILE *);
+extern int snd2nes(const char *, int, int, int, FILE *);
 
 /**
   Program entrypoint.
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
     const char *output_filename = 0;
     int note_delta = 3;
     int hz_delta = 48;
+    int multi = 0;
     /* Process arguments. */
     {
         char *p;
@@ -79,6 +81,8 @@ int main(int argc, char *argv[])
                     note_delta = strtol(&opt[11], 0, 0);
                 } else if (!strncmp("hertz-delta=", opt, 12)) {
                     hz_delta = strtol(&opt[12], 0, 0);
+                } else if (!strncmp("multi", opt, 5)) {
+                    multi = 1;
                 } else if (!strncmp("output=", opt, 7)) {
                     output_filename = &opt[7];
                 } else if (!strcmp("verbose", opt)) {
@@ -117,7 +121,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "snd2nes: failed to open `%s' for writing\n", output_filename);
             return(-1);
         }
-        ret = snd2nes(input_filename, note_delta, hz_delta, out);
+        ret = snd2nes(input_filename, note_delta, hz_delta, multi, out);
         fclose(out);
         if (ret == 1) {
             fprintf(stderr, "snd2nes: failed to open `%s' for reading\n", input_filename);
